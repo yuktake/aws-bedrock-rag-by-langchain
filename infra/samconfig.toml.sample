@@ -1,0 +1,9 @@
+version = 0.1
+[default.deploy.parameters]
+stack_name = "<STACK_NAME>"
+resolve_s3 = <TRUE_OR_FALSE>
+s3_prefix = "<S3_NAME>"
+region = "<YOUR_REGION>"
+confirm_changeset = <TRUE_OR_FALSE>
+capabilities = "CAPABILITY_NAMED_IAM"
+parameter_overrides = "EmbeddingModelArn=\"<MODEL_ARN>\" PineconeHostUrl=\"<PINECONE_URL>\" PineconeApiKey=\"<PINECONE_API_KEY>\""

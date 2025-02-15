@@ -1,0 +1,8 @@
+services:
+  api:
+    container_name: "langchain"
+    volumes:
+      - ./app:/app
+    build: .
+    # スクリプトが動作していなくてもコンテナを起動し続ける
+    tty: true
