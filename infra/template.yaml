@@ -1,0 +1,102 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  create aws infrastructure for langchain-bedrock
+
+Parameters:
+  EmbeddingModelArn:
+    Type: String
+  PineconeHostUrl:
+    Type: String
+  PineconeApiKey:
+    Type: String
+
+Resources:
+  KnowledgeBaseWithPinecone:
+    Type: AWS::Bedrock::KnowledgeBase
+    Properties:
+      Name: "knowledge-base-cfn"
+      Description: "knowledge-base-created-by-cfn"
+      KnowledgeBaseConfiguration:
+          Type: VECTOR
+          VectorKnowledgeBaseConfiguration:
+              EmbeddingModelArn: !Ref EmbeddingModelArn
+      RoleArn: !GetAtt BedrockKnowledgeBaseRole.Arn
+      StorageConfiguration:
+        Type: PINECONE
+        PineconeConfiguration:
+            ConnectionString: !Ref PineconeHostUrl
+            CredentialsSecretArn: !Ref PineconeDBSecret
+            FieldMapping:
+              TextField: "question"
+              MetadataField: "metadata"
+
+  KnowledgeBaseDataSource:
+    Type: AWS::Bedrock::DataSource
+    Properties:
+      KnowledgeBaseId: !Ref KnowledgeBaseWithPinecone
+      Name: "knowledge-base-data-source-cfn"
+      Description: "Data Source"
+      DataSourceConfiguration:
+        Type: S3
+        S3Configuration:
+          BucketArn: !GetAtt KnowledgeBaseBucket.Arn
+
+  KnowledgeBaseBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "${AWS::StackName}-kb-data"
+
+  PineconeDBSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: !Sub "${AWS::StackName}-pinecone-api-key"
+      Description: "API Key for PineconeDBSecret"
+      SecretString: 
+        !Sub 
+          - '{"apiKey": "${PineconeApiKey}"}'
+          - PineconeApiKey: !Ref PineconeApiKey
+
+  BedrockKnowledgeBaseRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${AWS::StackName}-bedrock-kb-role"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: bedrock.amazonaws.com
+            Action: "sts:AssumeRole"
+      Policies:
+        - PolicyName: BedrockKnowledgeBasePolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - "s3:ListBucket"
+                Resource: 
+                  - !GetAtt KnowledgeBaseBucket.Arn
+              - Effect: Allow
+                Action:
+                  - "secretsmanager:GetSecretValue"
+                Resource: 
+                  - !Ref PineconeDBSecret
+              - Effect: Allow
+                Action:
+                  - "bedrock:InvokeModel"
+                Resource: 
+                  - !Ref EmbeddingModelArn
+
+  ConversationHistoryTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub "${AWS::StackName}-conversation-history"
+      AttributeDefinitions:
+        - AttributeName: "SessionId"
+          AttributeType: "S"
+      KeySchema:
+        - AttributeName: "SessionId"
+          KeyType: "HASH"
+      BillingMode: PAY_PER_REQUEST
